@@ -1,0 +1,55 @@
+{
+  "rules": {
+    "$monthKey": {
+      ".read": true,
+
+      "worked": {
+        "$claimId": {
+          ".write": true,
+          ".validate": "(newData.isString() && (newData.val() === 'completed' || newData.val() === 'inprogress')) || !newData.exists()"
+        }
+      },
+      "actions": {
+        "$claimId": {
+          ".write": true,
+          ".validate": "(newData.isString() && newData.val().length <= 200) || !newData.exists()"
+        }
+      },
+      "remarks": {
+        "$claimId": {
+          ".write": true,
+          ".validate": "(newData.isString() && newData.val().length <= 500) || !newData.exists()"
+        }
+      },
+      "assignees": {
+        "$claimId": {
+          ".write": true,
+          ".validate": "(newData.isString() && newData.val().length <= 10) || !newData.exists()"
+        }
+      },
+      "escalations": {
+        "$claimId": {
+          ".write": true,
+          ".validate": "(newData.isString() && (newData.val() === 'JR' || newData.val() === 'MS')) || !newData.exists()"
+        }
+      },
+      "actionDates": {
+        "$claimId": {
+          ".write": true,
+          ".validate": "(newData.isString() && newData.val().length <= 20) || !newData.exists()"
+        }
+      },
+      "history": {
+        "$claimId": {
+          ".write": true,
+          "$entryId": {
+            ".validate": "newData.hasChildren(['field', 'value', 'timestamp']) && newData.child('field').isString() && newData.child('value').isString() && newData.child('timestamp').isString()"
+          }
+        }
+      }
+    },
+
+    ".read": false,
+    ".write": false
+  }
+}
