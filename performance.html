@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NJ OIC — Team Performance</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Poppins',sans-serif; background:linear-gradient(180deg,#FDF0F4 0%,#F5D5DF 100%); color:#1a1a2e; font-size:14px; min-height:100vh; }
+
+/* Header */
+.header {
+  background:linear-gradient(135deg,#7A2E50 0%,#A04878 40%,#C4749A 100%);
+  padding:22px 36px; display:flex; align-items:center; justify-content:space-between; color:#fff;
+  box-shadow:0 4px 20px rgba(131,24,67,.3);
+}
+.header img { height:45px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.2)); }
+.header h1 { font-size:24px; font-weight:800; letter-spacing:-0.5px; }
+.header .subtitle { font-size:12px; opacity:.85; margin-top:2px; }
+.nav-links { display:flex; gap:12px; align-items:center; }
+.nav-links a { color:#fff; text-decoration:none; font-size:12px; font-weight:600; background:rgba(255,255,255,.15); padding:8px 16px; border-radius:10px; transition:all .2s; backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,.1); }
+.nav-links a:hover { background:rgba(255,255,255,.3); transform:translateY(-1px); }
+.month-selector { display:flex; align-items:center; gap:8px; }
+.month-selector label { font-size:12px; font-weight:500; opacity:.85; }
+.month-selector select { font-family:'Poppins',sans-serif; font-size:13px; padding:6px 12px; border:1px solid rgba(255,255,255,.25); border-radius:8px; background:rgba(255,255,255,.12); color:#fff; cursor:pointer; font-weight:600; backdrop-filter:blur(4px); }
+.month-selector select option { color:#1a1a2e; background:#fff; }
+
+.sync-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.sync-live { background:#00D2A0; animation:pulse 2s infinite; box-shadow:0 0 6px rgba(0,210,160,.5); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* Section Headers */
+.section-header { padding:28px 36px 8px; }
+.section-header h2 { font-size:22px; font-weight:700; color:#7A2E50; display:flex; align-items:center; gap:10px; }
+.section-header h2 .icon { font-size:24px; }
+.section-header p { font-size:13px; color:#64748b; margin-top:4px; line-height:1.5; }
+
+/* Summary Cards */
+.summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; padding:12px 36px 24px; }
+.s-card {
+  background:#fff; border-radius:16px; padding:20px; text-align:center;
+  box-shadow:0 2px 12px rgba(131,24,67,.06); border:1px solid #F5D5DF;
+  transition:transform .2s, box-shadow .2s;
+}
+.s-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(131,24,67,.1); }
+.s-card.highlight { border:2px solid; }
+.s-card .s-icon { font-size:28px; margin-bottom:4px; }
+.s-card .s-val { font-size:30px; font-weight:800; margin:4px 0; }
+.s-card .s-label { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:1px; font-weight:600; }
+.s-card .s-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+
+/* Leaderboard */
+.leaderboard { padding:0 36px 28px; }
+.lb-wrapper {
+  background:#fff; border-radius:20px; overflow:hidden;
+  box-shadow:0 4px 20px rgba(131,24,67,.08); border:1px solid #F5D5DF;
+}
+.lb-row {
+  display:grid; grid-template-columns:60px 1fr 100px 120px 1fr 100px;
+  align-items:center; padding:16px 24px; gap:16px;
+  border-bottom:1px solid #FDF0F4; transition:background .2s;
+}
+.lb-row:hover { background:#FDF0F4; }
+.lb-row.lb-header {
+  background:linear-gradient(135deg,#7A2E50,#A04878); color:#fff;
+  font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;
+  padding:14px 24px;
+}
+.lb-row.lb-header:hover { background:linear-gradient(135deg,#7A2E50,#A04878); }
+.lb-rank-cell { text-align:center; }
+.lb-medal { font-size:32px; line-height:1; }
+.lb-rank-num { font-size:20px; font-weight:800; color:#94a3b8; }
+.lb-member { display:flex; flex-direction:column; }
+.lb-member-name { font-size:18px; font-weight:700; color:#7A2E50; }
+.lb-member-sub { font-size:11px; color:#94a3b8; }
+.lb-avg { text-align:center; }
+.lb-avg-val { font-size:28px; font-weight:800; line-height:1.1; }
+.lb-avg-label { font-size:10px; color:#94a3b8; text-transform:uppercase; }
+.lb-status-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:6px 14px; border-radius:20px; font-size:11px; font-weight:700; color:#fff;
+  letter-spacing:.3px;
+}
+.lb-status-above { background:linear-gradient(135deg,#00D2A0,#00a87e); }
+.lb-status-on { background:linear-gradient(135deg,#A04878,#C4749A); }
+.lb-status-below { background:linear-gradient(135deg,#FF6B6B,#e05555); }
+.lb-progress { position:relative; }
+.lb-progress-track { height:28px; background:#F5D5DF; border-radius:14px; overflow:visible; position:relative; }
+.lb-progress-fill {
+  height:100%; border-radius:14px; transition:width .6s ease;
+  display:flex; align-items:center; padding:0 10px; justify-content:flex-end;
+  min-width:50px;
+}
+.lb-progress-fill span { font-size:11px; font-weight:700; color:#fff; white-space:nowrap; }
+.lb-target-marker {
+  position:absolute; top:-4px; bottom:-4px; width:3px; border-radius:2px;
+  background:#7A2E50; z-index:2;
+}
+.lb-target-flag {
+  position:absolute; top:-20px; transform:translateX(-50%);
+  background:#7A2E50; color:#fff; font-size:9px; font-weight:700;
+  padding:2px 6px; border-radius:4px; white-space:nowrap;
+}
+.lb-target-flag::after {
+  content:''; position:absolute; bottom:-4px; left:50%; transform:translateX(-50%);
+  border:4px solid transparent; border-top-color:#7A2E50;
+}
+.lb-stats-cell { text-align:center; }
+.lb-stats-val { font-size:16px; font-weight:700; }
+.lb-stats-label { font-size:9px; color:#94a3b8; text-transform:uppercase; }
+
+/* Team Cards */
+.team-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px; padding:0 36px 28px; }
+.t-card {
+  background:#fff; border-radius:16px; padding:22px; position:relative; overflow:hidden;
+  box-shadow:0 2px 12px rgba(131,24,67,.06); border:1px solid #F5D5DF;
+  transition:transform .2s, box-shadow .2s;
+}
+.t-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(131,24,67,.1); }
+.t-card-accent { position:absolute; top:0; left:0; right:0; height:4px; }
+.t-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.t-card-name { font-size:20px; font-weight:700; color:#7A2E50; }
+.t-card-stats { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px; }
+.t-stat { text-align:center; padding:8px 4px; background:#FDF0F4; border-radius:10px; }
+.t-stat-val { font-size:20px; font-weight:800; line-height:1.2; }
+.t-stat-label { font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:.3px; font-weight:600; }
+.t-card-meta { font-size:11px; color:#64748b; line-height:1.6; }
+.t-card-meta b { color:#334155; }
+.t-progress { margin-top:10px; }
+.t-progress-track { height:6px; background:#F5D5DF; border-radius:3px; overflow:hidden; }
+.t-progress-fill { height:100%; border-radius:3px; transition:width .5s; }
+
+/* Charts */
+.charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; padding:0 36px 28px; }
+.chart-card {
+  background:#fff; border-radius:16px; padding:22px;
+  box-shadow:0 2px 12px rgba(131,24,67,.06); border:1px solid #F5D5DF;
+}
+.chart-card h3 { font-size:15px; font-weight:700; color:#7A2E50; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+.chart-card h3 .icon { font-size:18px; }
+.bar-row { display:flex; align-items:center; margin-bottom:8px; gap:8px; }
+.bar-label { width:140px; font-size:11px; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; color:#334155; font-weight:500; }
+.bar-track { flex:1; height:22px; background:#F5D5DF; border-radius:11px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:11px; transition:width .6s ease; }
+.bar-value { font-size:11px; font-weight:700; width:60px; text-align:right; flex-shrink:0; color:#334155; }
+
+/* Date filter */
+.filter-bar {
+  padding:12px 36px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+  background:#fff; margin:0 36px 20px; border-radius:14px;
+  box-shadow:0 2px 12px rgba(131,24,67,.06); border:1px solid #F5D5DF;
+}
+.filter-bar label { font-size:12px; font-weight:600; color:#334155; }
+.filter-bar select { font-family:'Poppins',sans-serif; font-size:12px; padding:7px 12px; border:1px solid #F5D5DF; border-radius:8px; background:#FDF0F4; color:#334155; }
+.filter-bar .btn {
+  padding:7px 18px; background:linear-gradient(135deg,#A04878,#C4749A); color:#fff;
+  border:none; border-radius:8px; cursor:pointer; font-family:'Poppins',sans-serif;
+  font-size:12px; font-weight:600; transition:all .2s;
+}
+.filter-bar .btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(190,24,93,.3); }
+
+/* Daily Table */
+.table-wrap { padding:0 36px 28px; }
+.daily-table {
+  width:100%; border-collapse:collapse; background:#fff; border-radius:16px;
+  overflow:hidden; box-shadow:0 2px 12px rgba(131,24,67,.06); border:1px solid #F5D5DF;
+  font-size:12px;
+}
+.daily-table thead th {
+  background:linear-gradient(135deg,#7A2E50,#A04878); color:#fff;
+  padding:12px 10px; text-align:left; font-weight:600; font-size:11px;
+  text-transform:uppercase; letter-spacing:.3px;
+}
+.daily-table tbody tr { border-bottom:1px solid #FDF0F4; transition:background .2s; }
+.daily-table tbody tr:hover { background:#FDF0F4; }
+.daily-table tbody td { padding:10px; }
+.daily-table .status-pill {
+  display:inline-block; padding:3px 10px; border-radius:10px;
+  font-size:10px; font-weight:700; color:#fff;
+}
+.money { text-align:right; font-variant-numeric:tabular-nums; }
+
+.loading-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(253,242,248,.9); display:flex; align-items:center; justify-content:center; z-index:9999; backdrop-filter:blur(4px); }
+.loading-overlay .spinner { font-size:18px; font-weight:700; color:#A04878; }
+
+@media (max-width:900px) {
+  .charts-grid { grid-template-columns:1fr; }
+  .team-grid { grid-template-columns:1fr; }
+  .lb-row { grid-template-columns:40px 1fr 80px 100px; }
+  .lb-row .lb-progress, .lb-row .lb-stats-cell { display:none; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>NJ OIC Team Performance</h1>
+    <div class="subtitle"><span class="sync-dot sync-live"></span>Live Performance Tracking &mdash; Daily Goal: 50 Claims/Member</div>
+  </div>
+  <div class="nav-links">
+    <div class="month-selector">
+      <label>Period:</label>
+      <select id="monthSelect" onchange="switchMonth(this.value)"></select>
+    </div>
+    <a href="dashboard.html">&#8592; Claims Dashboard</a>
+  </div>
+  <img src="https://abrahealthgroup.com/wp-content/uploads/2022/09/Asset-48@4x-copy.png" alt="Abra Health">
+</div>
+<div class="loading-overlay" id="loadingOverlay"><div class="spinner">Loading performance data...</div></div>
+
+<div class="section-header"><h2><span class="icon">&#128202;</span> Performance Overview</h2></div>
+<div class="summary-grid" id="perfSummary"></div>
+
+<div class="section-header">
+  <h2><span class="icon">&#127942;</span> Top Performers Leaderboard</h2>
+  <p>Ranked by daily goal achievement. Target: <b>50 claims/day</b> &mdash; On Target: 45-55 (10% threshold)</p>
+</div>
+<div class="leaderboard" id="leaderboard"></div>
+
+<div class="section-header"><h2><span class="icon">&#128101;</span> Team Member Detail</h2></div>
+<div class="team-grid" id="teamGrid"></div>
+
+<div class="section-header"><h2><span class="icon">&#128200;</span> Analytics</h2></div>
+<div class="charts-grid" id="outcomeCharts"></div>
+
+<div class="section-header"><h2><span class="icon">&#128197;</span> Daily Activity Log</h2></div>
+<div class="filter-bar">
+  <label>Date:</label>
+  <select id="fDate"><option value="all">All Dates</option></select>
+  <label>Team Member:</label>
+  <select id="fMember"><option value="all">All Members</option></select>
+  <button class="btn" onclick="buildDailyTable()">Apply Filter</button>
+</div>
+<div class="table-wrap">
+  <table class="daily-table"><thead id="dailyThead"></thead><tbody id="dailyTbody"></tbody></table>
+</div>
+
+<div style="height:40px"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "FIREBASE_API_KEY_HERE",
+  authDomain: "nj-oic-abra.firebaseapp.com",
+  databaseURL: "https://nj-oic-abra-default-rtdb.firebaseio.com",
+  projectId: "nj-oic-abra",
+  storageBucket: "nj-oic-abra.firebasestorage.app",
+  messagingSenderId: "SENDER_ID_HERE",
+  appId: "APP_ID_HERE"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const DAILY_TARGET = 50;
+const TARGET_THRESHOLD = 0.10;
+const TARGET_LOW = DAILY_TARGET * (1 - TARGET_THRESHOLD);
+const TARGET_HIGH = DAILY_TARGET * (1 + TARGET_THRESHOLD);
+
+let months = [];
+let currentMonthKey = '';
+let DATA = [];
+let fbWorked = {}, fbActions = {}, fbAssignees = {}, fbActionDates = {};
+
+async function loadMonths() {
+  const resp = await fetch('data/months.json');
+  months = await resp.json();
+  const sel = document.getElementById('monthSelect');
+  sel.innerHTML = '';
+  months.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = m.key;
+    opt.textContent = m.label + ' (' + m.date + ')';
+    if (i === 0) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  return months[0];
+}
+
+async function loadMonthData(monthKey) {
+  const m = months.find(x => x.key === monthKey);
+  if (!m) return [];
+  const resp = await fetch(m.file);
+  return resp.json();
+}
+
+async function switchMonth(monthKey) {
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  currentMonthKey = monthKey;
+  DATA = await loadMonthData(monthKey);
+  const prefix = monthKey;
+  fbWorked = {}; fbActions = {}; fbAssignees = {}; fbActionDates = {};
+  const fbTimeout = ms => new Promise((_, rej) => setTimeout(() => rej('timeout'), ms));
+  try {
+    const [wSnap, aSnap, asSnap, adSnap] = await Promise.race([
+      Promise.all([
+        db.ref(prefix + '/worked').once('value'),
+        db.ref(prefix + '/actions').once('value'),
+        db.ref(prefix + '/assignees').once('value'),
+        db.ref(prefix + '/actionDates').once('value'),
+      ]),
+      fbTimeout(3000)
+    ]);
+    fbWorked = wSnap.val() || {};
+    fbActions = aSnap.val() || {};
+    fbAssignees = asSnap.val() || {};
+    fbActionDates = adSnap.val() || {};
+    db.ref(prefix + '/worked').on('value', s => { fbWorked = s.val() || {}; rebuildAll(); });
+    db.ref(prefix + '/actions').on('value', s => { fbActions = s.val() || {}; rebuildAll(); });
+    db.ref(prefix + '/assignees').on('value', s => { fbAssignees = s.val() || {}; rebuildAll(); });
+    db.ref(prefix + '/actionDates').on('value', s => { fbActionDates = s.val() || {}; rebuildAll(); });
+  } catch(e) { console.warn('Firebase not available:', e); }
+  rebuildAll();
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function rebuildAll() {
+  buildPerfSummary();
+  buildLeaderboard();
+  buildTeamCards();
+  buildOutcomeCharts();
+  buildDateFilter();
+  buildMemberFilter();
+  buildDailyTable();
+}
+
+function getWorkedClaims() {
+  const touched = [];
+  DATA.forEach(r => {
+    const assignee = (fbAssignees[r.id] || '').trim().toUpperCase();
+    const status = fbWorked[r.id] || '';
+    const action = fbActions[r.id] || '';
+    const actionDate = fbActionDates[r.id] || '';
+    if (assignee || status || action) {
+      touched.push({ ...r, assignee, status, action, actionDate });
+    }
+  });
+  return touched;
+}
+
+function getTeamMembers(touched) {
+  const members = {};
+  touched.forEach(t => {
+    if (!t.assignee) return;
+    if (!members[t.assignee]) members[t.assignee] = { name: t.assignee, claims: [], completed: 0, inprogress: 0, totalEst: 0, dates: new Set() };
+    members[t.assignee].claims.push(t);
+    members[t.assignee].totalEst += t.insPayEst;
+    if (t.status === 'completed') members[t.assignee].completed++;
+    else if (t.status === 'inprogress') members[t.assignee].inprogress++;
+    if (t.actionDate) members[t.assignee].dates.add(t.actionDate);
+  });
+  return members;
+}
+
+function fmt(n) { return n.toLocaleString(undefined, {maximumFractionDigits: 0}); }
+
+function buildPerfSummary() {
+  const touched = getWorkedClaims();
+  const totalWorked = touched.length;
+  const totalCompleted = touched.filter(t => t.status === 'completed').length;
+  const totalInProgress = touched.filter(t => t.status === 'inprogress').length;
+  const totalEst = touched.reduce((s, t) => s + t.insPayEst, 0);
+  const completedEst = touched.filter(t => t.status === 'completed').reduce((s, t) => s + t.insPayEst, 0);
+  const uniqueDates = new Set(touched.map(t => t.actionDate).filter(d => d));
+  const daysWorked = uniqueDates.size || 1;
+  const avgPerDay = Math.round(totalWorked / daysWorked);
+  const members = getTeamMembers(touched);
+  const memberCount = Object.keys(members).length;
+  const teamGoalPct = Math.round(avgPerDay / DAILY_TARGET * 100);
+  const teamGoalColor = avgPerDay > TARGET_HIGH ? '#00D2A0' : avgPerDay >= TARGET_LOW ? '#A04878' : '#FF6B6B';
+  const membersAtTarget = Object.values(members).filter(m => { const d = m.dates.size || 1; return (m.claims.length / d) >= TARGET_LOW; }).length;
+
+  document.getElementById('perfSummary').innerHTML = `
+    <div class="s-card"><div class="s-icon">&#128203;</div><div class="s-val" style="color:#A04878">${totalWorked}</div><div class="s-label">Claims Worked</div></div>
+    <div class="s-card"><div class="s-icon">&#9989;</div><div class="s-val" style="color:#00D2A0">${totalCompleted}</div><div class="s-label">Completed</div><div class="s-sub">$${fmt(completedEst)}</div></div>
+    <div class="s-card"><div class="s-icon">&#9203;</div><div class="s-val" style="color:#FF9F43">${totalInProgress}</div><div class="s-label">In Progress</div></div>
+    <div class="s-card"><div class="s-icon">&#128176;</div><div class="s-val" style="color:#FF6B6B">$${fmt(totalEst)}</div><div class="s-label">$ Worked</div></div>
+    <div class="s-card highlight" style="border-color:${teamGoalColor}"><div class="s-icon">&#127919;</div><div class="s-val" style="color:${teamGoalColor}">${avgPerDay}</div><div class="s-label">Team Avg/Day</div><div class="s-sub">${teamGoalPct}% of target</div></div>
+    <div class="s-card"><div class="s-icon">&#128101;</div><div class="s-val" style="color:#A855F7">${membersAtTarget}/${memberCount}</div><div class="s-label">At Target</div></div>
+    <div class="s-card"><div class="s-icon">&#128197;</div><div class="s-val" style="color:#7A2E50">${daysWorked}</div><div class="s-label">Active Days</div></div>
+  `;
+}
+
+function buildLeaderboard() {
+  const touched = getWorkedClaims();
+  const members = getTeamMembers(touched);
+  const sorted = Object.values(members).map(m => {
+    const daysWorked = m.dates.size || 1;
+    const avgPerDay = m.claims.length / daysWorked;
+    const goalPct = (avgPerDay / DAILY_TARGET * 100);
+    const dailyCounts = {};
+    m.claims.forEach(c => { const d = c.actionDate || 'unknown'; dailyCounts[d] = (dailyCounts[d] || 0) + 1; });
+    const daysAtTarget = Object.values(dailyCounts).filter(c => c >= TARGET_LOW).length;
+    const daysBelow = Object.values(dailyCounts).filter(c => c < TARGET_LOW).length;
+    const targetHitRate = daysWorked > 0 ? Math.round(daysAtTarget / daysWorked * 100) : 0;
+    return { ...m, avgPerDay, goalPct, daysAtTarget, daysBelow, daysWorked, targetHitRate, dailyCounts };
+  }).sort((a, b) => b.goalPct - a.goalPct);
+
+  if (sorted.length === 0) {
+    document.getElementById('leaderboard').innerHTML = '<div style="padding:20px 0;color:#94a3b8;font-size:14px;text-align:center;">No team activity yet. Data appears as team members work claims.</div>';
+    return;
+  }
+
+  const maxAvg = Math.max(DAILY_TARGET * 1.5, ...sorted.map(m => m.avgPerDay));
+  const medals = ['&#129351;','&#129352;','&#129353;'];
+
+  let rows = `<div class="lb-row lb-header">
+    <div>Rank</div><div>Team Member</div><div>Avg/Day</div><div>Status</div><div>Progress vs Target</div><div>Stats</div>
+  </div>`;
+
+  sorted.forEach((m, i) => {
+    const rank = i + 1;
+    const rankHtml = rank <= 3 ? '<span class="lb-medal">' + medals[i] + '</span>' : '<span class="lb-rank-num">#' + rank + '</span>';
+    const statusClass = m.avgPerDay > TARGET_HIGH ? 'lb-status-above' : m.avgPerDay >= TARGET_LOW ? 'lb-status-on' : 'lb-status-below';
+    const statusText = m.avgPerDay > TARGET_HIGH ? '&#9650; Above' : m.avgPerDay >= TARGET_LOW ? '&#9679; On Target' : '&#9660; Below';
+    const fillPct = Math.min((m.avgPerDay / maxAvg * 100), 100).toFixed(1);
+    const fillColor = m.avgPerDay > TARGET_HIGH ? 'linear-gradient(90deg,#00D2A0,#00a87e)' : m.avgPerDay >= TARGET_LOW ? 'linear-gradient(90deg,#A04878,#C4749A)' : 'linear-gradient(90deg,#FF6B6B,#e05555)';
+    const targetLinePct = (DAILY_TARGET / maxAvg * 100).toFixed(1);
+    const completionRate = m.claims.length > 0 ? Math.round(m.completed / m.claims.length * 100) : 0;
+
+    rows += `<div class="lb-row">
+      <div class="lb-rank-cell">${rankHtml}</div>
+      <div class="lb-member">
+        <div class="lb-member-name">${m.name}</div>
+        <div class="lb-member-sub">${m.claims.length} claims | ${m.daysWorked} day${m.daysWorked>1?'s':''} | ${completionRate}% completed</div>
+      </div>
+      <div class="lb-avg">
+        <div class="lb-avg-val" style="color:${m.avgPerDay > TARGET_HIGH ? '#00D2A0' : m.avgPerDay >= TARGET_LOW ? '#A04878' : '#FF6B6B'}">${m.avgPerDay.toFixed(1)}</div>
+        <div class="lb-avg-label">${Math.round(m.goalPct)}% of goal</div>
+      </div>
+      <div><span class="lb-status-badge ${statusClass}">${statusText}</span></div>
+      <div class="lb-progress">
+        <div class="lb-progress-track">
+          <div class="lb-progress-fill" style="width:${fillPct}%;background:${fillColor}"><span>${m.avgPerDay.toFixed(1)}/day</span></div>
+          <div class="lb-target-marker" style="left:${targetLinePct}%"><div class="lb-target-flag">Target: 50</div></div>
+        </div>
+      </div>
+      <div class="lb-stats-cell">
+        <div><span class="lb-stats-val" style="color:#00D2A0">${m.daysAtTarget}</span> <span class="lb-stats-label">on target</span></div>
+        <div><span class="lb-stats-val" style="color:#FF6B6B">${m.daysBelow}</span> <span class="lb-stats-label">below</span></div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('leaderboard').innerHTML = '<div class="lb-wrapper">' + rows + '</div>';
+}
+
+function buildTeamCards() {
+  const touched = getWorkedClaims();
+  const members = getTeamMembers(touched);
+  const sorted = Object.values(members).sort((a, b) => b.claims.length - a.claims.length);
+  const maxClaims = sorted.length ? Math.max(...sorted.map(m => m.claims.length)) : 1;
+
+  let html = '';
+  sorted.forEach((m, i) => {
+    const daysWorked = m.dates.size || 1;
+    const avgPerDay = (m.claims.length / daysWorked).toFixed(1);
+    const completionRate = m.claims.length > 0 ? Math.round(m.completed / m.claims.length * 100) : 0;
+    const barPct = (m.claims.length / maxClaims * 100).toFixed(1);
+    const targetColor = avgPerDay > TARGET_HIGH ? '#00D2A0' : avgPerDay >= TARGET_LOW ? '#A04878' : '#FF6B6B';
+    const goalPct = Math.round(avgPerDay / DAILY_TARGET * 100);
+    const targetLabel = avgPerDay > TARGET_HIGH ? 'Above Target' : avgPerDay >= TARGET_LOW ? 'On Target' : 'Below Target';
+
+    const outcomes = {};
+    m.claims.forEach(c => { const act = c.action || 'No Action'; outcomes[act] = (outcomes[act] || 0) + 1; });
+    const topOutcome = Object.entries(outcomes).sort((a,b) => b[1] - a[1])[0];
+
+    html += `<div class="t-card">
+      <div class="t-card-accent" style="background:linear-gradient(90deg,${targetColor},${targetColor}88)"></div>
+      <div class="t-card-header">
+        <div class="t-card-name">${m.name}</div>
+        <span class="lb-status-badge" style="background:${targetColor};font-size:10px;padding:4px 10px;">${targetLabel}</span>
+      </div>
+      <div class="t-card-stats">
+        <div class="t-stat"><div class="t-stat-val" style="color:#A04878">${m.claims.length}</div><div class="t-stat-label">Worked</div></div>
+        <div class="t-stat"><div class="t-stat-val" style="color:#00D2A0">${m.completed}</div><div class="t-stat-label">Done</div></div>
+        <div class="t-stat"><div class="t-stat-val" style="color:#FF9F43">${m.inprogress}</div><div class="t-stat-label">In Prog</div></div>
+        <div class="t-stat"><div class="t-stat-val" style="color:${targetColor}">${avgPerDay}</div><div class="t-stat-label">Avg/Day</div></div>
+        <div class="t-stat"><div class="t-stat-val" style="color:${targetColor}">${goalPct}%</div><div class="t-stat-label">Goal</div></div>
+      </div>
+      <div class="t-card-meta">
+        <b>$${fmt(m.totalEst)}</b> worked &bull; <b>${completionRate}%</b> completion &bull; <b>${daysWorked}</b> day${daysWorked>1?'s':''}
+        ${topOutcome ? '<br>Top action: <b>' + topOutcome[0] + '</b> (' + topOutcome[1] + ')' : ''}
+      </div>
+      <div class="t-progress">
+        <div class="t-progress-track"><div class="t-progress-fill" style="width:${barPct}%;background:${targetColor}"></div></div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('teamGrid').innerHTML = html || '<div style="padding:20px;color:#94a3b8;text-align:center;">No team activity yet.</div>';
+}
+
+function buildOutcomeCharts() {
+  const touched = getWorkedClaims();
+  const members = getTeamMembers(touched);
+  const sorted = Object.values(members).sort((a, b) => b.claims.length - a.claims.length);
+  const colors = ['#A04878','#FF6B6B','#FF9F43','#00D2A0','#A855F7','#7A2E50','#C4749A'];
+
+  const maxC = sorted.length ? Math.max(...sorted.map(m => m.claims.length)) : 1;
+  let h1 = '';
+  sorted.forEach((m, i) => {
+    const pct = (m.claims.length / maxC * 100).toFixed(1);
+    h1 += `<div class="bar-row"><div class="bar-label" style="font-weight:600">${m.name}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${colors[i%colors.length]}"></div></div><div class="bar-value">${m.claims.length}</div></div>`;
+  });
+
+  const allOutcomes = {};
+  touched.forEach(t => { const a = t.action || 'No Action Set'; allOutcomes[a] = (allOutcomes[a] || 0) + 1; });
+  const outSorted = Object.entries(allOutcomes).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const maxO = outSorted.length ? Math.max(...outSorted.map(o => o[1])) : 1;
+  let h2 = '';
+  outSorted.forEach(([action, count], i) => {
+    const pct = (count / maxO * 100).toFixed(1);
+    h2 += `<div class="bar-row"><div class="bar-label">${action}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${colors[i%colors.length]}"></div></div><div class="bar-value">${count}</div></div>`;
+  });
+
+  document.getElementById('outcomeCharts').innerHTML = `
+    <div class="chart-card"><h3><span class="icon">&#128101;</span> Claims by Team Member</h3>${h1 || '<div style="color:#94a3b8;text-align:center;">No data yet</div>'}</div>
+    <div class="chart-card"><h3><span class="icon">&#128221;</span> Action Outcomes</h3>${h2 || '<div style="color:#94a3b8;text-align:center;">No data yet</div>'}</div>
+  `;
+}
+
+function buildDateFilter() {
+  const dates = new Set();
+  Object.values(fbActionDates).forEach(d => { if (d) dates.add(d); });
+  const sorted = [...dates].sort((a, b) => new Date(b) - new Date(a));
+  const sel = document.getElementById('fDate');
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="all">All Dates</option>';
+  sorted.forEach(d => { sel.innerHTML += `<option value="${d}">${d}</option>`; });
+  sel.value = curVal || 'all';
+}
+
+function buildMemberFilter() {
+  const members = new Set();
+  Object.values(fbAssignees).forEach(a => { if (a && a.trim()) members.add(a.trim().toUpperCase()); });
+  const sorted = [...members].sort();
+  const sel = document.getElementById('fMember');
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="all">All Members</option>';
+  sorted.forEach(m => { sel.innerHTML += `<option value="${m}">${m}</option>`; });
+  sel.value = curVal || 'all';
+}
+
+function buildDailyTable() {
+  const dateFilter = document.getElementById('fDate').value;
+  const memberFilter = document.getElementById('fMember').value;
+  const touched = getWorkedClaims();
+  const dailyData = {};
+  touched.forEach(t => {
+    const date = t.actionDate || 'No Date';
+    const member = t.assignee || 'Unassigned';
+    if (dateFilter !== 'all' && date !== dateFilter) return;
+    if (memberFilter !== 'all' && member !== memberFilter) return;
+    const key = date + '|' + member;
+    if (!dailyData[key]) dailyData[key] = { date, member, total: 0, completed: 0, inprogress: 0, noStatus: 0, totalEst: 0, completedEst: 0 };
+    dailyData[key].total++;
+    dailyData[key].totalEst += t.insPayEst;
+    if (t.status === 'completed') { dailyData[key].completed++; dailyData[key].completedEst += t.insPayEst; }
+    else if (t.status === 'inprogress') dailyData[key].inprogress++;
+    else dailyData[key].noStatus++;
+  });
+
+  const rows = Object.values(dailyData).sort((a, b) => {
+    const da = new Date(a.date), db2 = new Date(b.date);
+    if (isNaN(da)) return 1; if (isNaN(db2)) return -1;
+    if (db2 - da !== 0) return db2 - da;
+    return a.member.localeCompare(b.member);
+  });
+
+  document.getElementById('dailyThead').innerHTML = `<tr>
+    <th>Date</th><th>Team Member</th><th>Claims</th><th>vs Target</th><th>Goal %</th>
+    <th>Status</th><th>Completed</th><th>In Progress</th>
+    <th>$ Worked</th><th>$ Completed</th><th>Completion</th>
+  </tr>`;
+
+  let html = '';
+  rows.forEach(r => {
+    const rate = r.total > 0 ? Math.round(r.completed / r.total * 100) : 0;
+    const rateColor = rate >= 70 ? '#00D2A0' : rate >= 40 ? '#FF9F43' : '#FF6B6B';
+    const goalPct = Math.round(r.total / DAILY_TARGET * 100);
+    const targetColor = r.total > TARGET_HIGH ? '#00D2A0' : r.total >= TARGET_LOW ? '#A04878' : '#FF6B6B';
+    const targetBg = r.total > TARGET_HIGH ? 'linear-gradient(135deg,#00D2A0,#00a87e)' : r.total >= TARGET_LOW ? 'linear-gradient(135deg,#A04878,#C4749A)' : 'linear-gradient(135deg,#FF6B6B,#e05555)';
+    const targetLabel = r.total > TARGET_HIGH ? 'Above' : r.total >= TARGET_LOW ? 'On Target' : 'Below';
+    const diff = r.total - DAILY_TARGET;
+    const diffStr = diff >= 0 ? '+' + diff : '' + diff;
+    html += `<tr>
+      <td style="font-weight:600">${r.date}</td>
+      <td style="font-weight:700;color:#7A2E50;font-size:13px">${r.member}</td>
+      <td style="font-weight:800;font-size:16px;color:${targetColor}">${r.total}</td>
+      <td style="font-weight:700;color:${targetColor}">${diffStr}</td>
+      <td style="font-weight:700;color:${targetColor}">${goalPct}%</td>
+      <td><span class="status-pill" style="background:${targetBg}">${targetLabel}</span></td>
+      <td style="color:#00D2A0;font-weight:700">${r.completed}</td>
+      <td style="color:#FF9F43;font-weight:700">${r.inprogress}</td>
+      <td class="money" style="font-weight:600">$${fmt(r.totalEst)}</td>
+      <td class="money" style="color:#00D2A0;font-weight:700">$${fmt(r.completedEst)}</td>
+      <td><span style="color:${rateColor};font-weight:700">${rate}%</span></td>
+    </tr>`;
+  });
+  if (!html) html = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No activity data yet. Performance data appears as team members work claims.</td></tr>';
+  document.getElementById('dailyTbody').innerHTML = html;
+}
+
+async function init() {
+  const firstMonth = await loadMonths();
+  if (firstMonth) await switchMonth(firstMonth.key);
+}
+init();
+</script>
+</body>
+</html>

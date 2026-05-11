@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NJ OIC Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Poppins',sans-serif; background:#FDF0F4; color:#1a1a2e; font-size:14px; }
+
+.header { background:linear-gradient(135deg,#7A2E50,#A04878,#C4749A); padding:18px 30px; display:flex; align-items:center; justify-content:space-between; color:#fff; }
+.header img { height:45px; }
+.header h1 { font-size:26px; font-weight:700; }
+.header .subtitle { font-size:13px; opacity:.85; }
+
+/* Progress Section */
+.progress-section { padding:20px 30px; background:#fff; border-bottom:1px solid #F5D5DF; }
+.progress-title { font-size:16px; font-weight:600; color:#7A2E50; margin-bottom:10px; }
+.progress-row { display:flex; align-items:center; gap:16px; margin-bottom:8px; }
+.progress-label { font-size:13px; font-weight:500; width:140px; color:#333; }
+.progress-bar-track { flex:1; height:28px; background:#F5D5DF; border-radius:14px; overflow:hidden; position:relative; }
+.progress-bar-fill { height:100%; border-radius:14px; transition:width .5s ease; display:flex; align-items:center; justify-content:flex-end; padding-right:10px; min-width:40px; }
+.progress-bar-fill span { font-size:12px; font-weight:700; color:#fff; }
+.progress-fill-completed { background:linear-gradient(90deg,#00D2A0,#00a87e); }
+.progress-fill-inprogress { background:linear-gradient(90deg,#FFD93D,#FF9F43); }
+.progress-fill-remaining { background:linear-gradient(90deg,#E8A3B5,#DE8FA5); }
+.progress-stats { display:flex; gap:24px; margin-top:8px; }
+.progress-stat { font-size:13px; color:#555; }
+.progress-stat b { font-weight:600; }
+.progress-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+.dot-completed { background:#00D2A0; }
+.dot-inprogress { background:#FF9F43; }
+.dot-remaining { background:#DE8FA5; }
+
+/* Summary Cards */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; padding:18px 30px; }
+.card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(131,24,67,.08); text-align:center; border:1px solid #F5D5DF; }
+.card .label { font-size:12px; color:#666; text-transform:uppercase; letter-spacing:.5px; }
+.card .value { font-size:28px; font-weight:700; margin-top:4px; }
+.card .sub { font-size:11px; color:#999; margin-top:2px; }
+
+/* Aging Section */
+.section { padding:10px 30px 16px; }
+.section h2 { font-size:20px; font-weight:600; color:#7A2E50; margin-bottom:10px; border-bottom:3px solid #C4749A; display:inline-block; padding-bottom:4px; }
+.section p.desc { font-size:13px; color:#666; margin-bottom:12px; }
+
+/* Carrier Include/Exclude */
+.carrier-filters { display:flex; gap:16px; padding:0 30px 14px; flex-wrap:wrap; }
+.carrier-filter-box { background:#fff; border-radius:10px; padding:12px 16px; box-shadow:0 2px 6px rgba(131,24,67,.06); flex:1; min-width:280px; border:1px solid #F5D5DF; }
+.carrier-filter-box h4 { font-size:13px; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+.carrier-filter-box h4 .tag-include { background:#00D2A0; color:#fff; padding:2px 8px; border-radius:4px; font-size:10px; }
+.carrier-filter-box h4 .tag-exclude { background:#FF6B6B; color:#fff; padding:2px 8px; border-radius:4px; font-size:10px; }
+.cf-search { width:100%; padding:5px 8px; border:1px solid #F5D5DF; border-radius:6px; font-family:'Poppins',sans-serif; font-size:12px; margin-bottom:5px; }
+.cf-search:focus { border-color:#C4749A; outline:none; }
+.cf-list { max-height:140px; overflow-y:auto; border:1px solid #F5D5DF; border-radius:6px; }
+.cf-item { display:flex; align-items:center; gap:5px; padding:3px 7px; font-size:11px; cursor:pointer; border-bottom:1px solid #FDF0F4; }
+.cf-item:hover { background:#FDF0F4; }
+.cf-item input { accent-color:#A04878; }
+.cf-actions { display:flex; gap:6px; margin-top:6px; }
+.cf-actions button { font-family:'Poppins',sans-serif; font-size:11px; padding:3px 10px; border:1px solid #F5D5DF; border-radius:4px; background:#fff; cursor:pointer; }
+.cf-actions button:hover { background:#FDF0F4; }
+.cf-actions .cf-apply { background:#A04878; color:#fff; border-color:#A04878; }
+.cf-selected-count { font-size:10px; color:#666; margin-left:auto; }
+
+.aging-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+.aging-card { background:#fff; border-radius:10px; padding:14px; text-align:center; box-shadow:0 2px 6px rgba(131,24,67,.06); cursor:pointer; border:3px solid transparent; transition:all .2s; }
+.aging-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(131,24,67,.12); }
+.aging-card.active { border-color:#A04878; background:#FDF0F4; }
+.aging-card .bucket-label { font-size:16px; font-weight:700; }
+.aging-card .bucket-claims { font-size:13px; color:#666; margin-top:3px; }
+.aging-card .bucket-amount { font-size:18px; font-weight:700; color:#FF6B6B; margin-top:4px; }
+.aging-card[data-bucket="120+"] { border-left:5px solid #FF6B6B; }
+.aging-card[data-bucket="91-120"] { border-left:5px solid #FF9F43; }
+.aging-card[data-bucket="61-90"] { border-left:5px solid #A855F7; }
+.aging-card[data-bucket="31-60"] { border-left:5px solid #C4749A; }
+
+.charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:0 30px 16px; }
+.chart-box { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(131,24,67,.08); border:1px solid #F5D5DF; }
+.chart-box h3 { font-size:15px; font-weight:600; color:#7A2E50; margin-bottom:10px; }
+.bar-row { display:flex; align-items:center; margin-bottom:6px; gap:6px; }
+.bar-label { width:170px; font-size:11px; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+.bar-track { flex:1; height:20px; background:#F5D5DF; border-radius:6px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:6px; transition:width .5s; }
+.bar-value { font-size:11px; font-weight:600; width:85px; text-align:right; flex-shrink:0; }
+
+/* Filters */
+.filters { padding:8px 30px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.filters label { font-size:12px; font-weight:500; color:#555; }
+.filters select, .filters input { font-family:'Poppins',sans-serif; font-size:12px; padding:5px 8px; border:1px solid #F5D5DF; border-radius:6px; background:#fff; }
+.filters select:focus, .filters input:focus { border-color:#C4749A; outline:none; }
+.filters input[type="text"] { width:200px; }
+.filters .btn { padding:5px 14px; background:#A04878; color:#fff; border:none; border-radius:6px; cursor:pointer; font-family:'Poppins',sans-serif; font-size:12px; font-weight:500; }
+.filters .btn:hover { background:#7A2E50; }
+.filters .btn.export { background:#00D2A0; }
+.filter-count { font-size:12px; color:#666; margin-left:auto; }
+
+/* Table */
+.table-wrap { padding:0 30px 20px; overflow-x:auto; }
+table { width:100%; border-collapse:collapse; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(131,24,67,.08); font-size:12px; }
+thead th { background:#7A2E50; color:#fff; padding:8px 6px; text-align:left; font-weight:500; white-space:nowrap; cursor:pointer; user-select:none; position:sticky; top:0; z-index:2; }
+thead th:hover { background:#843860; }
+thead th .sort-arrow { font-size:9px; margin-left:3px; }
+tbody tr { border-bottom:1px solid #F5D5DF; transition:background .2s; }
+tbody tr:hover { background:#FDF0F4; }
+tbody td { padding:6px; vertical-align:top; }
+td.money { text-align:right; font-variant-numeric:tabular-nums; }
+td.note-cell { max-width:220px; font-size:10px; line-height:1.3; }
+td.note-cell .note-text { max-height:36px; overflow:hidden; cursor:pointer; }
+td.note-cell .note-text.expanded { max-height:none; }
+
+/* Row highlighting */
+tr.row-completed { background:#e6fbf3 !important; }
+tr.row-inprogress { background:#fff9e6 !important; }
+tr.row-untouched { background:#fef2f2 !important; }
+
+/* Status selects */
+.worked-select { font-family:'Poppins',sans-serif; font-size:11px; padding:3px 6px; border:1px solid #ccc; border-radius:4px; width:110px; }
+.worked-select.status-completed { background:#00D2A0; color:#fff; border-color:#00a87e; }
+.worked-select.status-inprogress { background:#FFD93D; color:#333; border-color:#e6c235; }
+.action-select { font-family:'Poppins',sans-serif; font-size:11px; padding:3px 6px; border:1px solid #ccc; border-radius:4px; width:100%; }
+.remarks-input { font-family:'Poppins',sans-serif; font-size:11px; padding:3px 6px; border:1px solid #ccc; border-radius:4px; width:100%; min-width:130px; }
+.remarks-input.has-text { border-color:#A04878; background:#FDF0F4; }
+.prev-worked-badge { display:inline-block; font-size:9px; font-weight:600; background:#A04878; color:#fff; padding:1px 5px; border-radius:3px; margin-bottom:2px; letter-spacing:.3px; }
+.history-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; border:none; cursor:pointer; font-size:16px; transition:all .2s; background:#F5D5DF; color:#843860; }
+.history-btn:hover { background:#A04878; color:#fff; transform:scale(1.1); }
+.history-btn.has-history { background:#A04878; color:#fff; }
+.history-btn.has-history:hover { background:#7A2E50; }
+
+/* History Modal */
+.history-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.5); z-index:10000; display:flex; align-items:center; justify-content:center; }
+.history-modal { background:#fff; border-radius:14px; width:620px; max-width:92vw; max-height:85vh; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,.25); display:flex; flex-direction:column; }
+.history-modal-header { background:linear-gradient(135deg,#7A2E50,#A04878); color:#fff; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; }
+.history-modal-header h3 { font-size:16px; font-weight:600; }
+.history-modal-close { background:none; border:none; color:#fff; font-size:22px; cursor:pointer; padding:0 4px; opacity:.8; }
+.history-modal-close:hover { opacity:1; }
+.history-modal-body { padding:20px; overflow-y:auto; flex:1; }
+.history-claim-info { display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; margin-bottom:18px; padding-bottom:14px; border-bottom:2px solid #F5D5DF; }
+.history-claim-info .hci-item { font-size:12px; }
+.history-claim-info .hci-label { color:#888; font-size:10px; text-transform:uppercase; letter-spacing:.5px; }
+.history-claim-info .hci-value { font-weight:600; color:#1a1a2e; margin-top:1px; }
+.history-current { margin-bottom:18px; padding-bottom:14px; border-bottom:2px solid #F5D5DF; }
+.history-current h4 { font-size:13px; font-weight:600; color:#7A2E50; margin-bottom:8px; }
+.history-current-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; }
+.history-current-grid .hc-item { font-size:12px; padding:6px 10px; background:#FDF0F4; border-radius:6px; }
+.history-current-grid .hc-label { color:#666; font-size:10px; text-transform:uppercase; }
+.history-current-grid .hc-val { font-weight:600; color:#1a1a2e; margin-top:2px; }
+.history-timeline { }
+.history-timeline h4 { font-size:13px; font-weight:600; color:#7A2E50; margin-bottom:10px; }
+.history-timeline-empty { font-size:12px; color:#999; font-style:italic; padding:10px 0; }
+.ht-entry { display:flex; gap:12px; margin-bottom:10px; position:relative; }
+.ht-dot-col { display:flex; flex-direction:column; align-items:center; width:14px; flex-shrink:0; }
+.ht-dot { width:10px; height:10px; border-radius:50%; background:#A04878; flex-shrink:0; margin-top:3px; }
+.ht-line { width:2px; flex:1; background:#F5D5DF; margin-top:3px; }
+.ht-content { flex:1; background:#FDF0F4; border-radius:8px; padding:8px 12px; border-left:3px solid #A04878; }
+.ht-content .ht-date { font-size:10px; color:#888; margin-bottom:3px; }
+.ht-content .ht-field { font-size:10px; color:#A04878; font-weight:600; text-transform:uppercase; }
+.ht-content .ht-change { font-size:12px; color:#1a1a2e; margin-top:2px; }
+.ht-dot.dot-status { background:#00D2A0; }
+.ht-dot.dot-action { background:#FF9F43; }
+.ht-dot.dot-remark { background:#A855F7; }
+.ht-dot.dot-assignee { background:#C4749A; }
+.ht-content.hc-status { border-left-color:#00D2A0; }
+.ht-content.hc-action { border-left-color:#FF9F43; }
+.ht-content.hc-remark { border-left-color:#A855F7; }
+.ht-content.hc-assignee { border-left-color:#C4749A; }
+
+.badge { display:inline-block; padding:2px 7px; border-radius:10px; font-size:10px; font-weight:600; color:#fff; }
+.badge-120 { background:#FF6B6B; }
+.badge-91 { background:#FF9F43; }
+.badge-61 { background:#A855F7; }
+.badge-31 { background:#C4749A; }
+
+/* Pagination */
+.pagination { padding:8px 30px 20px; display:flex; justify-content:center; gap:5px; align-items:center; }
+.pagination button { padding:5px 10px; border:1px solid #F5D5DF; background:#fff; border-radius:6px; cursor:pointer; font-family:'Poppins',sans-serif; font-size:12px; }
+.pagination button.active { background:#A04878; color:#fff; border-color:#A04878; }
+.pagination button:disabled { opacity:.4; cursor:default; }
+.page-info { font-size:12px; color:#666; margin:0 6px; }
+
+/* Month selector */
+.month-selector { display:flex; align-items:center; gap:10px; }
+.month-selector label { font-size:13px; font-weight:500; opacity:.9; }
+.month-selector select { font-family:'Poppins',sans-serif; font-size:14px; padding:6px 12px; border:2px solid rgba(255,255,255,.3); border-radius:8px; background:rgba(255,255,255,.15); color:#fff; cursor:pointer; font-weight:600; }
+.month-selector select option { color:#1a1a2e; background:#fff; }
+.loading-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(253,242,248,.85); display:flex; align-items:center; justify-content:center; z-index:9999; }
+.loading-overlay .spinner { font-size:18px; font-weight:600; color:#A04878; }
+
+/* Sync indicator */
+.sync-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.sync-live { background:#00D2A0; animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* Escalation */
+.escalation-select { font-family:'Poppins',sans-serif; font-size:11px; padding:4px 8px; border-radius:6px; border:1px solid #F5D5DF; background:#fff; cursor:pointer; font-weight:600; width:90px; }
+.escalation-jr { background:#0077B6; color:#fff; border-color:#0077B6; }
+.escalation-ms { background:#A855F7; color:#fff; border-color:#A855F7; }
+
+@media (max-width:900px) {
+  .aging-grid { grid-template-columns:repeat(2,1fr); }
+  .charts-row { grid-template-columns:1fr; }
+  .filters { flex-direction:column; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>NJ Outstanding Insurance Claims</h1>
+    <div class="subtitle"><span class="sync-dot sync-live"></span>Live Dashboard &mdash; 30+ Day Claims &mdash; <span id="reportDateLabel">Loading...</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="month-selector">
+      <label>Report Period:</label>
+      <select id="monthSelect" onchange="switchMonth(this.value)"></select>
+    </div>
+    <a href="performance.html" style="color:#fff;text-decoration:none;font-size:12px;font-weight:600;background:rgba(255,255,255,.15);padding:8px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.1);transition:all .2s;">&#128202; Team Performance</a>
+  </div>
+  <img src="https://abrahealthgroup.com/wp-content/uploads/2022/09/Asset-48@4x-copy.png" alt="Abra Health">
+</div>
+<div class="loading-overlay" id="loadingOverlay"><div class="spinner">Loading data...</div></div>
+
+<!-- Progress Bar -->
+<div class="progress-section">
+  <div class="progress-title">Claims Work Progress (30+ Days)</div>
+  <div class="progress-row">
+    <div class="progress-label">Overall Progress</div>
+    <div class="progress-bar-track">
+      <div style="display:flex;width:100%;height:100%;">
+        <div class="progress-bar-fill progress-fill-completed" id="progFillCompleted" style="width:0%"><span id="progPctCompleted">0%</span></div>
+        <div class="progress-bar-fill progress-fill-inprogress" id="progFillInprogress" style="width:0%"><span id="progPctInprogress">0%</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="progress-stats" id="progressStats"></div>
+</div>
+
+<div class="cards" id="summaryCards"></div>
+
+<div class="section">
+  <h2>Aging Buckets (30+ Days Only)</h2>
+  <div class="carrier-filters">
+    <div class="carrier-filter-box">
+      <h4><span class="tag-include">INCLUDE</span> Only These Carriers <span class="cf-selected-count" id="includeCount"></span></h4>
+      <input type="text" class="cf-search" id="includeSearch" placeholder="Search carriers..." oninput="filterCarrierList('include')">
+      <div class="cf-list" id="includeList"></div>
+      <div class="cf-actions">
+        <button onclick="selectAllCarriers('include')">Select All</button>
+        <button onclick="clearAllCarriers('include')">Clear All</button>
+        <button class="cf-apply" onclick="applyCarrierFilters()">Apply</button>
+      </div>
+    </div>
+    <div class="carrier-filter-box">
+      <h4><span class="tag-exclude">EXCLUDE</span> Remove These Carriers <span class="cf-selected-count" id="excludeCount"></span></h4>
+      <input type="text" class="cf-search" id="excludeSearch" placeholder="Search carriers..." oninput="filterCarrierList('exclude')">
+      <div class="cf-list" id="excludeList"></div>
+      <div class="cf-actions">
+        <button onclick="selectAllCarriers('exclude')">Select All</button>
+        <button onclick="clearAllCarriers('exclude')">Clear All</button>
+        <button class="cf-apply" onclick="applyCarrierFilters()">Apply</button>
+      </div>
+    </div>
+  </div>
+  <div class="aging-grid" id="agingGrid"></div>
+</div>
+
+<div class="charts-row">
+  <div class="chart-box"><h3>Top Carriers by Outstanding Amount</h3><div id="carrierChart"></div></div>
+  <div class="chart-box"><h3>Outstanding by Office</h3><div id="clinicChart"></div></div>
+</div>
+
+<div class="section">
+  <h2>45+ Days &mdash; Priority Breakdown</h2>
+  <p class="desc">Focus on claims over 45 days old needing priority follow-up</p>
+  <div class="charts-row" style="padding:0;">
+    <div class="chart-box"><h3 style="color:#FF6B6B;">Carriers &mdash; 45+ Days</h3><div id="carrier45Chart"></div></div>
+    <div class="chart-box"><h3 style="color:#FF6B6B;">Offices &mdash; 45+ Days</h3><div id="clinic45Chart"></div></div>
+  </div>
+</div>
+
+<div class="section"><h2>Claims Detail</h2></div>
+<div class="filters">
+  <label>Aging:</label>
+  <select id="fAging"><option value="all">All Buckets</option></select>
+  <label>Office:</label>
+  <select id="fClinic"><option value="all">All Offices</option></select>
+  <label>Carrier:</label>
+  <select id="fCarrier"><option value="all">All Carriers</option></select>
+  <label>Assigned:</label>
+  <select id="fAssignee">
+    <option value="all">All</option>
+    <option value="MS">MS</option>
+    <option value="">Unassigned</option>
+  </select>
+  <label>Status:</label>
+  <select id="fWorked">
+    <option value="all">All</option>
+    <option value="completed">Completed (Paid)</option>
+    <option value="inprogress">In Progress</option>
+    <option value="">Not Set</option>
+  </select>
+  <label>Escalation:</label>
+  <select id="fEscalation">
+    <option value="all">All</option>
+    <option value="JR">JR</option>
+    <option value="MS">MS</option>
+    <option value="">None</option>
+  </select>
+  <label>History:</label>
+  <select id="fHistory">
+    <option value="all">All Claims</option>
+    <option value="touched">Previously Worked</option>
+    <option value="untouched">Never Worked</option>
+  </select>
+  <label>Search:</label>
+  <input type="text" id="fSearch" placeholder="Patient ID or claim#">
+  <button class="btn" onclick="applyFilters()">Filter</button>
+  <button class="btn" onclick="resetFilters()">Reset</button>
+  <button class="btn export" onclick="exportCSV()">Export CSV</button>
+  <span class="filter-count" id="filterCount"></span>
+</div>
+
+<div class="table-wrap">
+  <table><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="pagination" id="pagination"></div>
+
+<!-- History Modal -->
+<div class="history-overlay" id="historyOverlay" style="display:none" onclick="if(event.target===this)closeHistoryModal()">
+  <div class="history-modal">
+    <div class="history-modal-header">
+      <h3 id="historyTitle">Claim History</h3>
+      <button class="history-modal-close" onclick="closeHistoryModal()">&times;</button>
+    </div>
+    <div class="history-modal-body" id="historyBody"></div>
+  </div>
+</div>
+
+<script>
+// ===== Firebase Setup =====
+// TODO: Replace with your NJ OIC Firebase project credentials
+const firebaseConfig = {
+  apiKey: "FIREBASE_API_KEY_HERE",
+  authDomain: "nj-oic-abra.firebaseapp.com",
+  databaseURL: "https://nj-oic-abra-default-rtdb.firebaseio.com",
+  projectId: "nj-oic-abra",
+  storageBucket: "nj-oic-abra.firebasestorage.app",
+  messagingSenderId: "SENDER_ID_HERE",
+  appId: "APP_ID_HERE"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Firebase refs — namespaced per month
+let currentMonthKey = '';
+let workedRef, actionRef, remarksRef, assigneeRef, historyRef, actionDatesRef, escalationRef;
+let months = [];
+let fbListeners = [];
+
+function setFirebaseRefs(monthKey) {
+  fbListeners.forEach(fn => fn());
+  fbListeners = [];
+  currentMonthKey = monthKey;
+  workedRef = db.ref(monthKey + '/worked');
+  actionRef = db.ref(monthKey + '/actions');
+  remarksRef = db.ref(monthKey + '/remarks');
+  assigneeRef = db.ref(monthKey + '/assignees');
+  historyRef = db.ref(monthKey + '/history');
+  actionDatesRef = db.ref(monthKey + '/actionDates');
+  escalationRef = db.ref(monthKey + '/escalations');
+}
+
+async function loadMonths() {
+  const resp = await fetch('data/months.json');
+  months = await resp.json();
+  const sel = document.getElementById('monthSelect');
+  sel.innerHTML = '';
+  months.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = m.key;
+    opt.textContent = m.label + ' (' + m.date + ')';
+    if (i === 0) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  return months[0];
+}
+
+async function loadMonthData(monthKey) {
+  const m = months.find(x => x.key === monthKey);
+  if (!m) return [];
+  const resp = await fetch(m.file);
+  return resp.json();
+}
+
+async function switchMonth(monthKey) {
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  DATA = await loadMonthData(monthKey);
+  const m = months.find(x => x.key === monthKey);
+  document.getElementById('reportDateLabel').textContent = m ? m.label + ' (' + m.date + ')' : monthKey;
+  setFirebaseRefs(monthKey);
+  fbWorked = {}; fbActions = {}; fbRemarks = {}; fbAssignees = {}; fbEscalations = {};
+  prevMonthWorked = {}; prevMonthActions = {}; prevMonthRemarks = {}; prevMonthAssignees = {};
+  const fbTimeout = ms => new Promise((_, rej) => setTimeout(() => rej('timeout'), ms));
+  try {
+    const mIdx = months.findIndex(x => x.key === monthKey);
+    if (mIdx >= 0 && mIdx < months.length - 1) {
+      const prevKey = months[mIdx + 1].key;
+      const [pw, pa, pr, pas] = await Promise.race([
+        Promise.all([
+          db.ref(prevKey + '/worked').once('value'),
+          db.ref(prevKey + '/actions').once('value'),
+          db.ref(prevKey + '/remarks').once('value'),
+          db.ref(prevKey + '/assignees').once('value'),
+        ]),
+        fbTimeout(3000)
+      ]);
+      prevMonthWorked = pw.val() || {};
+      prevMonthActions = pa.val() || {};
+      prevMonthRemarks = pr.val() || {};
+      prevMonthAssignees = pas.val() || {};
+    }
+  } catch(e) { console.warn('Firebase not available:', e); }
+  includeCarriers.clear(); excludeCarriers.clear();
+  document.getElementById('includeSearch').value = '';
+  document.getElementById('excludeSearch').value = '';
+  allCarriers = [...new Set(DATA.map(r => r.carrier))].sort();
+  buildCarrierFilterLists();
+  document.getElementById('fAging').innerHTML = '<option value="all">All Buckets</option>';
+  document.getElementById('fClinic').innerHTML = '<option value="all">All Offices</option>';
+  document.getElementById('fCarrier').innerHTML = '<option value="all">All Carriers</option>';
+  document.getElementById('fAssignee').value = 'all';
+  document.getElementById('fWorked').value = 'all';
+  document.getElementById('fEscalation').value = 'all';
+  document.getElementById('fHistory').value = 'all';
+  document.getElementById('fSearch').value = '';
+  buildFilterOptions();
+  buildThead();
+  rebuildAll();
+  try { attachFirebaseListeners(); } catch(e) { console.warn('Firebase listeners not attached:', e); }
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function attachFirebaseListeners() {
+  const wCb = workedRef.on('value', snap => {
+    fbWorked = snap.val() || {};
+    updateProgressBar();
+    renderTableIfNeeded();
+  });
+  fbListeners.push(() => workedRef.off('value', wCb));
+  const aCb = actionRef.on('value', snap => {
+    fbActions = snap.val() || {};
+    renderTableIfNeeded();
+  });
+  fbListeners.push(() => actionRef.off('value', aCb));
+  const rCb = remarksRef.on('value', snap => {
+    fbRemarks = snap.val() || {};
+    renderTableIfNeeded();
+  });
+  fbListeners.push(() => remarksRef.off('value', rCb));
+  const asCb = assigneeRef.on('value', snap => {
+    fbAssignees = snap.val() || {};
+    renderTableIfNeeded();
+  });
+  fbListeners.push(() => assigneeRef.off('value', asCb));
+  const esCb = escalationRef.on('value', snap => {
+    fbEscalations = snap.val() || {};
+    renderTableIfNeeded();
+  });
+  fbListeners.push(() => escalationRef.off('value', esCb));
+}
+
+// ===== Data =====
+let DATA = [];
+
+const ACTIONS = [
+  '', 'Called Insurance - Follow Up', 'Claim Resubmitted', 'Appeal Submitted',
+  'Waiting for EOB/PA', 'Corrected Claim Sent', 'Coordination of Benefits Issue',
+  'Patient Contacted - Info Needed', 'Sent to Patient Collections',
+  'Write-Off Recommended', 'Payment Received - Pending Post',
+  'Denied - Under Review', 'Credentialing Issue', 'Timely Filing Issue', 'Other (See Remarks)'
+];
+
+const COLS = [
+  {key:'_history', label:'', w:'36px'},
+  {key:'agingBucket', label:'Aging', w:'65px'},
+  {key:'daysOut', label:'Days', w:'50px'},
+  {key:'patNum', label:'Patient ID', w:'105px'},
+  {key:'dos', label:'DOS', w:'85px'},
+  {key:'carrier', label:'Carrier', w:'150px'},
+  {key:'clinic', label:'Office', w:'85px'},
+  {key:'provider', label:'Provider', w:'140px'},
+  {key:'claimLevel', label:'Type', w:'65px'},
+  {key:'insPayEst', label:'Ins Est', w:'75px', money:true},
+  {key:'billedFee', label:'Billed', w:'75px', money:true},
+  {key:'trackDate', label:'Last Tracked', w:'85px'},
+  {key:'trackNote', label:'Tracking Note', w:'190px', note:true},
+  {key:'_assignee', label:'Assigned To', w:'85px', interactive:true},
+  {key:'_worked', label:'Status', w:'115px', interactive:true},
+  {key:'_action', label:'Action Taken', w:'170px', interactive:true},
+  {key:'_remarks', label:'Remarks', w:'150px', interactive:true},
+  {key:'_escalation', label:'Escalation', w:'100px', interactive:true},
+];
+
+const PER_PAGE = 50;
+let filtered = [];
+let currentPage = 1;
+let sortCol = 'daysOut';
+let sortDir = -1;
+let includeCarriers = new Set();
+let excludeCarriers = new Set();
+let allCarriers = [];
+let fbWorked = {};
+let fbActions = {};
+let fbRemarks = {};
+let fbEscalations = {};
+let fbAssignees = {};
+let prevMonthWorked = {};
+let prevMonthActions = {};
+let prevMonthRemarks = {};
+let prevMonthAssignees = {};
+
+async function init() {
+  const firstMonth = await loadMonths();
+  if (firstMonth) {
+    await switchMonth(firstMonth.key);
+    document.getElementById('monthSelect').value = firstMonth.key;
+  }
+}
+
+let savedFilterState={};
+function saveFilterState(){
+    const g=id=>document.getElementById(id);
+    savedFilterState={aging:g('fAging').value,clinic:g('fClinic').value,carrier:g('fCarrier').value,assignee:g('fAssignee').value,worked:g('fWorked').value,escalation:g('fEscalation').value,search:g('fSearch').value,history:g('fHistory').value,page:currentPage};
+    try{sessionStorage.setItem('nj-oic-filters',JSON.stringify(savedFilterState));}catch(e){}
+}
+function restoreFilterState(){
+    if(!savedFilterState.aging){try{savedFilterState=JSON.parse(sessionStorage.getItem('nj-oic-filters')||'{}');}catch(e){savedFilterState={};}}
+    if(!savedFilterState.aging)return;
+    const g=id=>document.getElementById(id);
+    if(g('fAging'))g('fAging').value=savedFilterState.aging||'all';
+    if(g('fClinic'))g('fClinic').value=savedFilterState.clinic||'all';
+    if(g('fCarrier'))g('fCarrier').value=savedFilterState.carrier||'all';
+    if(g('fAssignee'))g('fAssignee').value=savedFilterState.assignee||'all';
+    if(g('fWorked'))g('fWorked').value=savedFilterState.worked||'all';
+    if(g('fEscalation'))g('fEscalation').value=savedFilterState.escalation||'all';
+    if(g('fSearch'))g('fSearch').value=savedFilterState.search||'';
+    if(g('fHistory'))g('fHistory').value=savedFilterState.history||'all';
+    if(savedFilterState.page)currentPage=savedFilterState.page;
+}
+let tableRendered = false;
+function renderTableIfNeeded() {
+  if (tableRendered) { restoreFilterState(); applyFilters(); }
+}
+
+function getCarrierFilteredRecords() {
+  return DATA.filter(r => {
+    if (includeCarriers.size > 0 && !includeCarriers.has(r.carrier)) return false;
+    if (excludeCarriers.has(r.carrier)) return false;
+    return true;
+  });
+}
+
+function rebuildAll() {
+  buildSummary();
+  buildAging();
+  buildCharts();
+  build45Charts();
+  applyFilters();
+}
+
+// ===== Progress Bar =====
+function updateProgressBar() {
+  const recs = getCarrierFilteredRecords();
+  const total = recs.length;
+  let completed = 0, inprogress = 0;
+  recs.forEach(r => {
+    const w = fbWorked[r.id] || '';
+    if (w === 'completed') completed++;
+    else if (w === 'inprogress') inprogress++;
+  });
+  const remaining = total - completed - inprogress;
+  const pctC = total > 0 ? (completed/total*100) : 0;
+  const pctI = total > 0 ? (inprogress/total*100) : 0;
+
+  document.getElementById('progFillCompleted').style.width = pctC.toFixed(1)+'%';
+  document.getElementById('progPctCompleted').textContent = pctC >= 2 ? Math.round(pctC)+'%' : '';
+  document.getElementById('progFillInprogress').style.width = pctI.toFixed(1)+'%';
+  document.getElementById('progPctInprogress').textContent = pctI >= 2 ? Math.round(pctI)+'%' : '';
+
+  let prevWorked = 0;
+  recs.forEach(r => {
+    if(fbWorked[r.id]||fbActions[r.id]||fbRemarks[r.id]||fbAssignees[r.id]||prevMonthWorked[r.id]||prevMonthActions[r.id]||prevMonthRemarks[r.id]||prevMonthAssignees[r.id]) prevWorked++;
+  });
+  document.getElementById('progressStats').innerHTML = `
+    <span class="progress-stat"><span class="progress-dot dot-completed"></span> <b>${completed}</b> Completed (Paid)</span>
+    <span class="progress-stat"><span class="progress-dot dot-inprogress"></span> <b>${inprogress}</b> In Progress</span>
+    <span class="progress-stat"><span class="progress-dot dot-remaining"></span> <b>${remaining}</b> Not Started</span>
+    <span class="progress-stat">| <b>${total}</b> Total Claims</span>
+    <span class="progress-stat" style="color:#A04878">| <b>${prevWorked}</b> Previously Worked</span>
+  `;
+}
+
+// ===== Summary =====
+function buildSummary() {
+  const recs = getCarrierFilteredRecords();
+  const totalEst = recs.reduce((s,r)=>s+r.insPayEst,0);
+  const over60 = recs.filter(r=>['120+','91-120','61-90'].includes(r.agingBucket));
+  const carrierMap = {};
+  recs.forEach(r => { if (!carrierMap[r.carrier]) carrierMap[r.carrier]={n:r.carrier,e:0,c:0}; carrierMap[r.carrier].e+=r.insPayEst; carrierMap[r.carrier].c++; });
+  const topC = Object.values(carrierMap).sort((a,b)=>b.e-a.e)[0] || {n:'N/A',e:0,c:0};
+  const clinicMap = {};
+  recs.forEach(r => { if (!clinicMap[r.clinic]) clinicMap[r.clinic]={n:r.clinic,e:0,c:0}; clinicMap[r.clinic].e+=r.insPayEst; clinicMap[r.clinic].c++; });
+  const topCl = Object.values(clinicMap).sort((a,b)=>b.e-a.e)[0] || {n:'N/A',e:0,c:0};
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card"><div class="label">30+ Day Claims</div><div class="value" style="color:#A04878">${recs.length}</div></div>
+    <div class="card"><div class="label">Total Outstanding</div><div class="value" style="color:#FF6B6B">$${fmt(totalEst)}</div></div>
+    <div class="card"><div class="label">Over 60 Days</div><div class="value" style="color:#A855F7">${over60.length}</div><div class="sub">$${fmt(over60.reduce((s,r)=>s+r.insPayEst,0))}</div></div>
+    <div class="card"><div class="label">Top Carrier</div><div class="value" style="font-size:16px;color:#FF9F43">${topC.n}</div><div class="sub">$${fmt(topC.e)} (${topC.c})</div></div>
+    <div class="card"><div class="label">Top Office</div><div class="value" style="font-size:18px;color:#00D2A0">${topCl.n}</div><div class="sub">$${fmt(topCl.e)} (${topCl.c})</div></div>
+  `;
+}
+
+function fmt(n) { return n.toLocaleString(undefined,{maximumFractionDigits:0}); }
+
+// ===== Aging =====
+function buildAging() {
+  const recs = getCarrierFilteredRecords();
+  const colors = {'120+':'#FF6B6B','91-120':'#FF9F43','61-90':'#A855F7','31-60':'#C4749A'};
+  const bucketOrder = ['120+','91-120','61-90','31-60'];
+  const bd = {}; bucketOrder.forEach(b => bd[b]={c:0,e:0});
+  recs.forEach(r => { if(bd[r.agingBucket]) { bd[r.agingBucket].c++; bd[r.agingBucket].e+=r.insPayEst; }});
+  let html = '';
+  bucketOrder.forEach(b => {
+    html += `<div class="aging-card" data-bucket="${b}" onclick="filterByBucket('${b}')">
+      <div class="bucket-label" style="color:${colors[b]}">${b} Days</div>
+      <div class="bucket-claims">${bd[b].c} claims</div>
+      <div class="bucket-amount">$${fmt(bd[b].e)}</div>
+    </div>`;
+  });
+  document.getElementById('agingGrid').innerHTML = html;
+}
+
+// ===== Charts =====
+function buildCharts() {
+  const recs = getCarrierFilteredRecords();
+  const clrs = ['#A04878','#FF6B6B','#A855F7','#C4749A','#FF9F43','#00D2A0','#7A2E50','#DE8FA5','#843860','#B55A82','#A04878','#FF6B6B','#A855F7','#C4749A','#FF9F43'];
+  const cm = {}; recs.forEach(r=>{if(!cm[r.carrier])cm[r.carrier]={n:r.carrier,e:0,c:0};cm[r.carrier].e+=r.insPayEst;cm[r.carrier].c++;});
+  const ct = Object.values(cm).sort((a,b)=>b.e-a.e).slice(0,15);
+  const mx = ct.length?Math.max(...ct.map(c=>c.e)):1;
+  let h='';ct.forEach((c,i)=>{const p=(c.e/mx*100).toFixed(1);h+=`<div class="bar-row"><div class="bar-label" title="${c.n}">${c.n}</div><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${clrs[i]}"></div></div><div class="bar-value">$${(c.e/1000).toFixed(1)}K (${c.c})</div></div>`;});
+  document.getElementById('carrierChart').innerHTML=h||'<div style="color:#999">No data</div>';
+  const clm={}; recs.forEach(r=>{if(!clm[r.clinic])clm[r.clinic]={n:r.clinic,e:0,c:0};clm[r.clinic].e+=r.insPayEst;clm[r.clinic].c++;});
+  const clt=Object.values(clm).sort((a,b)=>b.e-a.e);const mxc=clt.length?Math.max(...clt.map(c=>c.e)):1;
+  const cc=['#A04878','#C4749A','#7A2E50','#FF6B6B','#00D2A0','#FF9F43','#A855F7','#B55A82','#DE8FA5'];
+  let h2='';clt.forEach((c,i)=>{const p=(c.e/mxc*100).toFixed(1);h2+=`<div class="bar-row"><div class="bar-label">${c.n}</div><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${cc[i%cc.length]}"></div></div><div class="bar-value">$${(c.e/1000).toFixed(1)}K (${c.c})</div></div>`;});
+  document.getElementById('clinicChart').innerHTML=h2||'<div style="color:#999">No data</div>';
+}
+
+function build45Charts() {
+  const recs = getCarrierFilteredRecords().filter(r=>r.daysOut>=45);
+  const clrs=['#A04878','#FF6B6B','#A855F7','#C4749A','#FF9F43','#00D2A0','#7A2E50','#DE8FA5','#843860','#B55A82','#A04878','#FF6B6B','#A855F7','#C4749A','#FF9F43','#00D2A0','#7A2E50','#DE8FA5','#843860','#B55A82'];
+  const cm={};recs.forEach(r=>{if(!cm[r.carrier])cm[r.carrier]={n:r.carrier,e:0,c:0};cm[r.carrier].e+=r.insPayEst;cm[r.carrier].c++;});
+  const ct=Object.values(cm).sort((a,b)=>b.e-a.e).slice(0,20);const mx=ct.length?Math.max(...ct.map(c=>c.e)):1;
+  let h=`<div style="font-size:12px;color:#333;margin-bottom:8px;font-weight:600;">${recs.length} claims | $${fmt(recs.reduce((s,r)=>s+r.insPayEst,0))} (45+ days)</div>`;
+  ct.forEach((c,i)=>{const p=(c.e/mx*100).toFixed(1);h+=`<div class="bar-row"><div class="bar-label" title="${c.n}">${c.n}</div><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${clrs[i]}"></div></div><div class="bar-value">$${(c.e/1000).toFixed(1)}K (${c.c})</div></div>`;});
+  document.getElementById('carrier45Chart').innerHTML=h||'No data';
+  const clm={};recs.forEach(r=>{if(!clm[r.clinic])clm[r.clinic]={n:r.clinic,e:0,c:0};clm[r.clinic].e+=r.insPayEst;clm[r.clinic].c++;});
+  const clt=Object.values(clm).sort((a,b)=>b.e-a.e);const mxc=clt.length?Math.max(...clt.map(c=>c.e)):1;
+  const cc=['#A04878','#C4749A','#7A2E50','#FF6B6B','#00D2A0','#FF9F43','#A855F7','#B55A82','#DE8FA5'];
+  let h2='';clt.forEach((c,i)=>{const p=(c.e/mxc*100).toFixed(1);h2+=`<div class="bar-row"><div class="bar-label">${c.n}</div><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${cc[i%cc.length]}"></div></div><div class="bar-value">$${(c.e/1000).toFixed(1)}K (${c.c})</div></div>`;});
+  document.getElementById('clinic45Chart').innerHTML=h2||'No data';
+}
+
+// ===== Carrier Include/Exclude =====
+function buildCarrierFilterLists() { renderCarrierList('include'); renderCarrierList('exclude'); }
+function renderCarrierList(type) {
+  const sv=(document.getElementById(type+'Search')?.value||'').toLowerCase();
+  const sel=type==='include'?includeCarriers:excludeCarriers;
+  let h='';allCarriers.forEach(c=>{if(sv&&!c.toLowerCase().includes(sv))return;const ck=sel.has(c)?'checked':'';h+=`<label class="cf-item"><input type="checkbox" ${ck} onchange="toggleCarrier('${type}',this.closest('.cf-item').dataset.c,this.checked)" > ${c}</label>`;});
+  document.getElementById(type+'List').innerHTML=h||'<div style="padding:6px;color:#999;font-size:11px">No match</div>';
+  document.querySelectorAll('#'+type+'List .cf-item').forEach((el,i)=>{
+    const filtered=allCarriers.filter(c=>!sv||c.toLowerCase().includes(sv));
+    if(filtered[i]) el.dataset.c=filtered[i];
+  });
+  updateCarrierCount(type);
+}
+function filterCarrierList(type){renderCarrierList(type);}
+function toggleCarrier(type,carrier,checked){const s=type==='include'?includeCarriers:excludeCarriers;if(checked)s.add(carrier);else s.delete(carrier);updateCarrierCount(type);}
+function selectAllCarriers(type){const s=type==='include'?includeCarriers:excludeCarriers;const sv=(document.getElementById(type+'Search')?.value||'').toLowerCase();allCarriers.forEach(c=>{if(!sv||c.toLowerCase().includes(sv))s.add(c);});renderCarrierList(type);}
+function clearAllCarriers(type){if(type==='include')includeCarriers.clear();else excludeCarriers.clear();renderCarrierList(type);}
+function updateCarrierCount(type){const s=type==='include'?includeCarriers:excludeCarriers;document.getElementById(type+'Count').textContent=s.size>0?'('+s.size+' selected)':'';}
+function applyCarrierFilters(){rebuildAll();updateProgressBar();}
+
+// ===== Filter Options =====
+function buildFilterOptions() {
+  const buckets=['120+','91-120','61-90','31-60'];
+  buckets.forEach(b=>{document.getElementById('fAging').innerHTML+=`<option value="${b}">${b} Days</option>`;});
+  const clinics=[...new Set(DATA.map(r=>r.clinic))].sort();
+  clinics.forEach(c=>{document.getElementById('fClinic').innerHTML+=`<option value="${c}">${c}</option>`;});
+  const carriers=[...new Set(DATA.map(r=>r.carrier))].sort();
+  carriers.forEach(c=>{document.getElementById('fCarrier').innerHTML+=`<option value="${c}">${c}</option>`;});
+}
+
+// ===== Table =====
+function buildThead() {
+  let h='<tr>';COLS.forEach(c=>{const a=sortCol===c.key?(sortDir===1?'&#9650;':'&#9660;'):'';h+=`<th style="width:${c.w}" onclick="sortBy('${c.key}')">${c.label}<span class="sort-arrow">${a}</span></th>`;});h+='</tr>';
+  document.getElementById('thead').innerHTML=h;
+}
+
+function sortBy(col) {
+  if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=col==='daysOut'||col==='insPayEst'||col==='billedFee'?-1:1;}
+  filtered.sort(sortFn);currentPage=1;buildThead();renderTable();
+}
+function sortFn(a,b){let va=a[sortCol],vb=b[sortCol];if(sortCol==='agingBucket'){const o={'120+':5,'91-120':4,'61-90':3,'31-60':2};va=o[va]||0;vb=o[vb]||0;}if(typeof va==='string')va=va.toLowerCase();if(typeof vb==='string')vb=vb.toLowerCase();if(va<vb)return -1*sortDir;if(va>vb)return 1*sortDir;return 0;}
+
+function applyFilters() {
+  const aging=document.getElementById('fAging').value;
+  const clinic=document.getElementById('fClinic').value;
+  const carrier=document.getElementById('fCarrier').value;
+  const assignee=document.getElementById('fAssignee').value;
+  const worked=document.getElementById('fWorked').value;
+  const search=document.getElementById('fSearch').value.toLowerCase().trim();
+  const escalation=document.getElementById('fEscalation').value;
+  const history=document.getElementById('fHistory').value;
+
+  const prev=savedFilterState;
+  const filtersChanged=aging!==(prev.aging||'all')||clinic!==(prev.clinic||'all')||carrier!==(prev.carrier||'all')||assignee!==(prev.assignee||'all')||worked!==(prev.worked||'all')||escalation!==(prev.escalation||'all')||search!==(prev.search||'')||history!==(prev.history||'all');
+  if(filtersChanged) currentPage=1;
+
+  filtered=DATA.filter(r=>{
+    if(includeCarriers.size>0&&!includeCarriers.has(r.carrier))return false;
+    if(excludeCarriers.has(r.carrier))return false;
+    if(aging!=='all'&&r.agingBucket!==aging)return false;
+    if(clinic!=='all'&&r.clinic!==clinic)return false;
+    if(carrier!=='all'&&r.carrier!==carrier)return false;
+    if(assignee!=='all'){const a=fbAssignees[r.id]||'';if(assignee===''&&a!=='')return false;if(assignee!==''&&a!==assignee)return false;}
+    if(worked!=='all'){const w=fbWorked[r.id]||'';if(worked===''&&w!=='')return false;if(worked!==''&&w!==worked)return false;}
+    if(escalation!=='all'){const e=fbEscalations[r.id]||'';if(escalation===''&&e!=='')return false;if(escalation!==''&&e!==escalation)return false;}
+    if(history!=='all'){
+      const hasWork=!!(fbWorked[r.id]||fbActions[r.id]||fbRemarks[r.id]||fbAssignees[r.id]||prevMonthWorked[r.id]||prevMonthActions[r.id]||prevMonthRemarks[r.id]||prevMonthAssignees[r.id]);
+      if(history==='touched'&&!hasWork)return false;
+      if(history==='untouched'&&hasWork)return false;
+    }
+    if(search){const s=`${r.patNum} ${r.id} ${r.carrier}`.toLowerCase();if(!s.includes(search))return false;}
+    return true;
+  });
+  filtered.sort(sortFn);
+  document.querySelectorAll('.aging-card').forEach(c=>c.classList.toggle('active',c.dataset.bucket===aging));
+  renderTable();
+  tableRendered=true;
+  const totalEst=filtered.reduce((s,r)=>s+r.insPayEst,0);
+  document.getElementById('filterCount').textContent=`${filtered.length} claims | $${fmt(totalEst)} outstanding`;
+  saveFilterState();
+}
+
+function resetFilters(){
+  savedFilterState={};
+  try{sessionStorage.removeItem('nj-oic-filters');}catch(e){}
+  document.getElementById('fAging').value='all';document.getElementById('fClinic').value='all';
+  document.getElementById('fCarrier').value='all';document.getElementById('fAssignee').value='all';document.getElementById('fWorked').value='all';
+  document.getElementById('fEscalation').value='all';document.getElementById('fHistory').value='all';document.getElementById('fSearch').value='';
+  includeCarriers.clear();excludeCarriers.clear();
+  document.getElementById('includeSearch').value='';document.getElementById('excludeSearch').value='';
+  renderCarrierList('include');renderCarrierList('exclude');
+  document.querySelectorAll('.aging-card').forEach(c=>c.classList.remove('active'));
+  rebuildAll();updateProgressBar();
+}
+
+function filterByBucket(bucket){document.getElementById('fAging').value=bucket;applyFilters();}
+
+function badgeClass(b){if(b==='120+')return'badge-120';if(b.startsWith('91'))return'badge-91';if(b.startsWith('61'))return'badge-61';return'badge-31';}
+
+function renderTable() {
+  const start=(currentPage-1)*PER_PAGE;
+  const page=filtered.slice(start,start+PER_PAGE);
+  let h='';
+  page.forEach(r=>{
+    const wVal=fbWorked[r.id]||'';
+    const aVal=fbActions[r.id]||'';
+    const rmVal=fbRemarks[r.id]||'';
+    const rowClass=wVal==='completed'?'row-completed':wVal==='inprogress'?'row-inprogress':(!r.trackNote.trim()?'row-untouched':'');
+    const wClass=wVal==='completed'?'status-completed':wVal==='inprogress'?'status-inprogress':'';
+    const hasWork=!!(wVal||aVal||rmVal||(fbAssignees[r.id]||''));
+    const hadPrevWork=!!(prevMonthWorked[r.id]||prevMonthActions[r.id]||prevMonthRemarks[r.id]||prevMonthAssignees[r.id]);
+    const anyWork=hasWork||hadPrevWork;
+    h+=`<tr class="${rowClass}">
+      <td style="text-align:center"><button class="history-btn${anyWork?' has-history':''}" onclick="openHistoryModal('${r.id}')" title="View claim history">&#128203;</button></td>
+      <td><span class="badge ${badgeClass(r.agingBucket)}">${r.agingBucket}</span></td>
+      <td>${r.daysOut}</td>
+      <td>${r.patNum}</td>
+      <td>${r.dos}</td>
+      <td style="font-size:11px">${esc(r.carrier)}</td>
+      <td>${r.clinic}</td>
+      <td style="font-size:10px">${esc(r.provider||'')}</td>
+      <td><span style="font-size:10px;font-weight:600;color:${r.claimLevel==='Primary'?'#A04878':r.claimLevel==='Secondary'?'#A855F7':'#999'}">${r.claimLevel||''}</span></td>
+      <td class="money">$${r.insPayEst.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+      <td class="money">$${r.billedFee.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+      <td>${r.trackDate}</td>
+      <td class="note-cell"><div class="note-text" onclick="this.classList.toggle('expanded')">${esc(r.trackNote)}</div></td>
+      <td><input class="remarks-input${(fbAssignees[r.id]||'')?' has-text':''}" data-id="${r.id}" value="${escAttr(fbAssignees[r.id]||'')}" onchange="saveAssignee(this)" placeholder="Type initials..." style="width:80px;text-transform:uppercase;"></td>
+      <td>${anyWork?'<div class="prev-worked-badge">PREV WORKED</div>':''}
+      <select class="worked-select ${wClass}" data-id="${r.id}" onchange="saveWorked(this)">
+        <option value=""${wVal===''?' selected':''}>-- Select --</option>
+        <option value="completed"${wVal==='completed'?' selected':''}>Completed (Paid)</option>
+        <option value="inprogress"${wVal==='inprogress'?' selected':''}>In Progress</option>
+      </select></td>
+      <td><select class="action-select" data-id="${r.id}" onchange="saveAction(this)">
+        ${ACTIONS.map(a=>`<option value="${a}"${aVal===a?' selected':''}>${a||'\u2014 Select \u2014'}</option>`).join('')}
+      </select></td>
+      <td><input class="remarks-input${rmVal?' has-text':''}" data-id="${r.id}" value="${escAttr(rmVal)}" onchange="saveRemarks(this)" placeholder="Add notes..."></td>
+      <td>${renderEscalation(r.id)}</td>
+    </tr>`;
+  });
+  document.getElementById('tbody').innerHTML=h;
+  renderPagination();
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escAttr(s){return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+// ===== Firebase Save =====
+function logHistory(id, field, value) {
+  if(!value) return;
+  historyRef.child(id).push({
+    field: field,
+    value: value,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function getTodayStr() {
+  const d = new Date();
+  return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
+}
+
+function saveWorked(el){
+  const id=el.dataset.id, val=el.value;
+  workedRef.child(id).set(val||null);
+  if(val) actionDatesRef.child(id).set(getTodayStr());
+  logHistory(id, 'Status', val==='completed'?'Completed (Paid)':val==='inprogress'?'In Progress':'Cleared');
+  const row=el.closest('tr');
+  const rec=DATA.find(r=>r.id===id);
+  const untouched=rec&&!rec.trackNote.trim();
+  row.className=val==='completed'?'row-completed':val==='inprogress'?'row-inprogress':(untouched?'row-untouched':'');
+  el.className='worked-select'+(val==='completed'?' status-completed':val==='inprogress'?' status-inprogress':'');
+}
+function saveAssignee(el){
+  const val = el.value.trim().toUpperCase();
+  el.value = val;
+  assigneeRef.child(el.dataset.id).set(val||null);
+  logHistory(el.dataset.id, 'Assigned To', val||'Unassigned');
+  el.classList.toggle('has-text',!!val);
+}
+function saveAction(el){
+  actionRef.child(el.dataset.id).set(el.value||null);
+  if(el.value) actionDatesRef.child(el.dataset.id).set(getTodayStr());
+  logHistory(el.dataset.id, 'Action Taken', el.value);
+}
+function saveRemarks(el){
+  remarksRef.child(el.dataset.id).set(el.value||null);
+  logHistory(el.dataset.id, 'Remarks', el.value);
+  el.classList.toggle('has-text',!!el.value.trim());
+}
+function renderEscalation(id){
+  const val=fbEscalations[id]||'';
+  const cls=val==='JR'?'escalation-jr':val==='MS'?'escalation-ms':'';
+  return `<select class="escalation-select ${cls}" data-id="${id}" onchange="saveEscalation(this)">
+    <option value=""${val===''?' selected':''}>\u2014</option>
+    <option value="JR"${val==='JR'?' selected':''}>JR</option>
+    <option value="MS"${val==='MS'?' selected':''}>MS</option>
+  </select>`;
+}
+function saveEscalation(el){
+  const val=el.value;
+  escalationRef.child(el.dataset.id).set(val||null);
+  logHistory(el.dataset.id, 'Escalation', val||'Cleared');
+  el.className='escalation-select'+(val==='JR'?' escalation-jr':val==='MS'?' escalation-ms':'');
+}
+
+// ===== Pagination =====
+function renderPagination(){
+  const tp=Math.ceil(filtered.length/PER_PAGE);if(tp<=1){document.getElementById('pagination').innerHTML='';return;}
+  let h=`<button ${currentPage===1?'disabled':''} onclick="goPage(1)">&laquo;</button><button ${currentPage===1?'disabled':''} onclick="goPage(${currentPage-1})">&lsaquo;</button>`;
+  const s=Math.max(1,currentPage-3),e=Math.min(tp,currentPage+3);
+  for(let i=s;i<=e;i++)h+=`<button class="${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+  h+=`<span class="page-info">Page ${currentPage} of ${tp}</span><button ${currentPage===tp?'disabled':''} onclick="goPage(${currentPage+1})">&rsaquo;</button><button ${currentPage===tp?'disabled':''} onclick="goPage(${tp})">&raquo;</button>`;
+  document.getElementById('pagination').innerHTML=h;
+}
+function goPage(p){currentPage=p;renderTable();window.scrollTo({top:document.querySelector('.table-wrap').offsetTop-10,behavior:'smooth'});}
+
+// ===== Export =====
+function exportCSV(){
+  const headers=['Aging','Days','PatientID','DOS','Carrier','Office','Provider','Type','InsEst','Billed','LastTracked','TrackingNote','AssignedTo','Status','ActionTaken','Remarks','Escalation','PreviouslyWorked'];
+  let csv=headers.join(',')+String.fromCharCode(10);
+  filtered.forEach(r=>{
+    const pw=!!(fbWorked[r.id]||fbActions[r.id]||fbRemarks[r.id]||fbAssignees[r.id]||prevMonthWorked[r.id]||prevMonthActions[r.id]||prevMonthRemarks[r.id]||prevMonthAssignees[r.id])?'Yes':'No';
+    const row=[r.agingBucket,r.daysOut,r.patNum,r.dos,'"'+r.carrier+'"',r.clinic,'"'+(r.provider||'')+'"',r.claimLevel||'',r.insPayEst,r.billedFee,r.trackDate,'"'+r.trackNote.replace(/"/g,'""')+'"',fbAssignees[r.id]||'',fbWorked[r.id]||'','"'+(fbActions[r.id]||'').replace(/"/g,'""')+'"','"'+(fbRemarks[r.id]||'').replace(/"/g,'""')+'"',fbEscalations[r.id]||'',pw];
+    csv+=row.join(',')+String.fromCharCode(10);
+  });
+  const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='NJ_OIC_WorkLog_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+
+// ===== History Modal =====
+function openHistoryModal(claimId) {
+  const rec = DATA.find(r => r.id === claimId);
+  if (!rec) return;
+  document.getElementById('historyTitle').textContent = 'Claim #' + claimId + ' — Work History';
+
+  let html = '<div class="history-claim-info">';
+  html += '<div class="hci-item"><div class="hci-label">Patient ID</div><div class="hci-value">' + rec.patNum + '</div></div>';
+  html += '<div class="hci-item"><div class="hci-label">Carrier</div><div class="hci-value">' + esc(rec.carrier) + '</div></div>';
+  html += '<div class="hci-item"><div class="hci-label">Office</div><div class="hci-value">' + rec.clinic + '</div></div>';
+  html += '<div class="hci-item"><div class="hci-label">DOS</div><div class="hci-value">' + rec.dos + '</div></div>';
+  html += '<div class="hci-item"><div class="hci-label">Provider</div><div class="hci-value">' + esc(rec.provider||'N/A') + '</div></div>';
+  html += '<div class="hci-item"><div class="hci-label">Type</div><div class="hci-value">' + (rec.claimLevel||'N/A') + '</div></div>';
+  html += '<div class="hci-item"><div class="hci-label">Days Outstanding</div><div class="hci-value">' + rec.daysOut + ' days (' + rec.agingBucket + ')</div></div>';
+  html += '<div class="hci-item"><div class="hci-label">Insurance Est</div><div class="hci-value">$' + rec.insPayEst.toLocaleString(undefined,{minimumFractionDigits:2}) + '</div></div>';
+  if (rec.trackDate) {
+    html += '<div class="hci-item" style="grid-column:1/-1"><div class="hci-label">OD Tracking Note (' + rec.trackDate + ')</div><div class="hci-value" style="font-weight:400;font-size:11px;">' + esc(rec.trackNote) + '</div></div>';
+  }
+  html += '</div>';
+
+  const prevStatus = prevMonthWorked[claimId] || '';
+  const prevAction = prevMonthActions[claimId] || '';
+  const prevRemarks = prevMonthRemarks[claimId] || '';
+  const prevAssignee = prevMonthAssignees[claimId] || '';
+  if (prevStatus || prevAction || prevRemarks || prevAssignee) {
+    html += '<div class="history-current" style="border-left:4px solid #FF9F43;padding-left:16px;"><h4 style="color:#FF9F43;">Previous Month Work</h4><div class="history-current-grid">';
+    html += '<div class="hc-item"><div class="hc-label">Status</div><div class="hc-val">' + (prevStatus==='completed'?'Completed (Paid)':prevStatus==='inprogress'?'In Progress':'Not Set') + '</div></div>';
+    html += '<div class="hc-item"><div class="hc-label">Assigned To</div><div class="hc-val">' + (prevAssignee||'Unassigned') + '</div></div>';
+    html += '<div class="hc-item"><div class="hc-label">Action Taken</div><div class="hc-val">' + (prevAction||'None') + '</div></div>';
+    html += '<div class="hc-item"><div class="hc-label">Remarks</div><div class="hc-val">' + (prevRemarks?esc(prevRemarks):'None') + '</div></div>';
+    html += '</div></div>';
+  }
+
+  const curStatus = fbWorked[claimId] || '';
+  const curAction = fbActions[claimId] || '';
+  const curRemarks = fbRemarks[claimId] || '';
+  const curAssignee = fbAssignees[claimId] || '';
+  html += '<div class="history-current"><h4>Current Month Status</h4><div class="history-current-grid">';
+  html += '<div class="hc-item"><div class="hc-label">Status</div><div class="hc-val">' + (curStatus==='completed'?'Completed (Paid)':curStatus==='inprogress'?'In Progress':'Not Set') + '</div></div>';
+  html += '<div class="hc-item"><div class="hc-label">Assigned To</div><div class="hc-val">' + (curAssignee||'Unassigned') + '</div></div>';
+  html += '<div class="hc-item"><div class="hc-label">Action Taken</div><div class="hc-val">' + (curAction||'None') + '</div></div>';
+  html += '<div class="hc-item"><div class="hc-label">Remarks</div><div class="hc-val">' + (curRemarks?esc(curRemarks):'None') + '</div></div>';
+  html += '</div></div>';
+
+  html += '<div class="history-timeline"><h4>Activity Timeline</h4>';
+
+  const mIdx = months.findIndex(x => x.key === currentMonthKey);
+  const prevMonthKey = (mIdx >= 0 && mIdx < months.length - 1) ? months[mIdx + 1].key : null;
+
+  const histPromises = [historyRef.child(claimId).once('value')];
+  if (prevMonthKey) histPromises.push(db.ref(prevMonthKey + '/history/' + claimId).once('value'));
+
+  Promise.all(histPromises).then(snaps => {
+    let allEntries = [];
+    const curHist = snaps[0].val();
+    if (curHist) {
+      Object.values(curHist).forEach(e => allEntries.push({...e, month: currentMonthKey}));
+    }
+    if (snaps[1]) {
+      const prevHist = snaps[1].val();
+      if (prevHist) {
+        Object.values(prevHist).forEach(e => allEntries.push({...e, month: prevMonthKey}));
+      }
+    }
+
+    if (allEntries.length === 0) {
+      html += '<div class="history-timeline-empty">No tracked changes yet. Future status, action, and remark changes will appear here.</div>';
+    } else {
+      allEntries.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+      allEntries.forEach((e, i) => {
+        const dt = new Date(e.timestamp);
+        const dateStr = dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' + dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+        const fieldClass = e.field==='Status'?'status':e.field==='Action Taken'?'action':e.field==='Remarks'?'remark':'assignee';
+        const isLast = i === allEntries.length - 1;
+        const monthLabel = e.month !== currentMonthKey ? ' <span style="font-size:9px;background:#FF9F43;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px;">PREV MONTH</span>' : '';
+        html += '<div class="ht-entry"><div class="ht-dot-col"><div class="ht-dot dot-' + fieldClass + '"></div>' + (isLast?'':'<div class="ht-line"></div>') + '</div>';
+        html += '<div class="ht-content hc-' + fieldClass + '"><div class="ht-date">' + dateStr + monthLabel + '</div>';
+        html += '<div class="ht-field">' + esc(e.field) + '</div>';
+        html += '<div class="ht-change">' + esc(e.value) + '</div></div></div>';
+      });
+    }
+    html += '</div>';
+    document.getElementById('historyBody').innerHTML = html;
+  });
+
+  html += '<div style="color:#999;font-size:12px;">Loading timeline...</div></div>';
+  document.getElementById('historyBody').innerHTML = html;
+  document.getElementById('historyOverlay').style.display = 'flex';
+}
+
+function closeHistoryModal() {
+  document.getElementById('historyOverlay').style.display = 'none';
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeHistoryModal(); });
+
+init();
+</script>
+</body>
+</html>
